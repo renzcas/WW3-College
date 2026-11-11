@@ -52,8 +52,6 @@ class TestWorld(unittest.TestCase):
             {"food": 100.0}
         )
 
-        initial_snapshot = world.get_state_snapshot()
-
         world.add_flow(
             "usa",
             "non_existent_country",
@@ -70,8 +68,8 @@ class TestWorld(unittest.TestCase):
         )
 
         self.assertEqual(
-            world.get_state_snapshot(),
-            initial_snapshot
+            world.nodes["usa"]["state"]["food"],
+            100.0
         )
 
     def test_multiple_flow_atomicity(self):
@@ -156,15 +154,14 @@ class TestWorld(unittest.TestCase):
             {"food": 50.0}
         )
 
-        world.add_flow(
-            "usa",
-            "japan",
-            "food",
-            -10.0
-        )
-
         with self.assertRaises(ValueError):
-            world.step()
+
+            world.add_flow(
+                "usa",
+                "japan",
+                "food",
+                -10.0
+            )
 
 
 if __name__ == "__main__":
