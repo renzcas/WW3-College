@@ -11,10 +11,11 @@ class World:
         self.tick_count = 0
         self.nodes = {}
         self.flows = []
-        
-        # Pillar 3 & 4 Native Event & Tension Engine State
+
+        # Pillar 3 & 4
         self.event_queue = []
         self.event_history = []
+
         self.global_tension = 0.0
         self.world_stage = "PEACE"
 
@@ -46,86 +47,158 @@ class World:
 
     def queue_event(self, event):
         """
-        Validate and queue an incoming event for simulation processing.
+        Validate and queue an incoming event.
         """
+
         if not event.validate():
-            raise ValueError("Invalid event parameters or out-of-range metrics.")
+            raise ValueError(
+                "Invalid event parameters."
+            )
+
         self.event_queue.append(event)
 
     def process_events(self):
         """
-        Drain the event queue, push to history, and mutate global tension/stages.
+        Drain event queue and update
+        world tension/state.
         """
+
         while self.event_queue:
+
             event = self.event_queue.pop(0)
+
             self.event_history.append(event)
-            
-            # Accumulate tension based on normalized escalation score
-            self.global_tension += event.escalation_score()
-            self.global_tension = min(self.global_tension, 100.0)
-            
-            self.update_world_stage()
+
+            # Slow-burn pressure model
+            self.global_tension += (
+                event.escalation_score() / 10.0
+            )
+
+            self.global_tension = min(
+                self.global_tension,
+                100.0
+            )
+
+        self.update_world_stage()
 
     def update_world_stage(self):
-        """
-        Determine current geopolitical stage based on global tension thresholds.
-        """
+
         t = self.global_tension
+
         if t < 20:
             self.world_stage = "PEACE"
+
         elif t < 40:
             self.world_stage = "COMPETITION"
+
         elif t < 60:
             self.world_stage = "CRISIS"
+
         elif t < 80:
             self.world_stage = "REGIONAL_WAR"
+
         else:
             self.world_stage = "GLOBAL_WAR_RISK"
 
     def get_world_report(self) -> dict:
         """
-        Generate a summary snapshot of the current simulation epoch.
+        Produce a reporting snapshot.
         """
-        recent_events = [e.title for e in self.event_history[-5:]]
+
+        aggregated_resources = {}
+
+        for node in self.nodes.values():
+
+            for resource, value in node["state"].items():
+
+                aggregated_resources[resource] = (
+                    aggregated_resources.get(
+                        resource,
+                        0.0
+                    )
+                    + value
+                )
+
+        recent_events = [
+            {
+                "title": e.title,
+                "category": e.category,
+                "escalation_score": (
+                    e.escalation_score()
+                )
+            }
+            for e in self.event_history[-5:]
+        ]
+
         return {
-            "tick": self.tick_count,
-            "world_stage": self.world_stage,
-            "global_tension": round(self.global_tension, 2),
-            "recent_events": recent_events,
-            "nodes_count": len(self.nodes)
+
+            "epoch_tick":
+                self.tick_count,
+
+            "world_stage":
+                self.world_stage,
+
+            "global_tension":
+                round(
+                    self.global_tension,
+                    2
+                ),
+
+            "recent_events":
+                recent_events,
+
+            "telemetry": {
+
+                "active_nodes":
+                    len(self.nodes),
+
+                "aggregated_resources":
+                    aggregated_resources
+            }
         }
 
     def get_state_snapshot(self):
 
         return copy.deepcopy({
-            "tick_count": self.tick_count,
-            "nodes": self.nodes,
-            "flows": self.flows,
-            "event_queue": self.event_queue,
-            "event_history": self.event_history,
-            "global_tension": self.global_tension,
-            "world_stage": self.world_stage
+
+            "tick_count":
+                self.tick_count,
+
+            "nodes":
+                self.nodes,
+
+            "flows":
+                self.flows,
+
+            "event_queue":
+                self.event_queue,
+
+            "event_history":
+                self.event_history,
+
+            "global_tension":
+                self.global_tension,
+
+            "world_stage":
+                self.world_stage
         })
 
     def step(self):
 
-        # 1. Take snapshot before executing tick
         snapshot = SnapshotManager.create_snapshot(
             self.get_state_snapshot()
         )
 
         try:
-            # 2. Process queued events before physics flows execute
+
+            # Process events first
             self.process_events()
 
-            # 3. Delta buffer for atomic updates
             deltas = {
                 node_id: {}
                 for node_id in self.nodes
             }
 
-            # 4. Collect flow rates &
-            #    enforce referential integrity
             for flow in self.flows:
 
                 src = flow["source"]
@@ -144,14 +217,19 @@ class World:
                     )
 
                 deltas[src][res] = (
-                    deltas[src].get(res, 0.0) - rate
+                    deltas[src].get(
+                        res,
+                        0.0
+                    ) - rate
                 )
 
                 deltas[tgt][res] = (
-                    deltas[tgt].get(res, 0.0) + rate
+                    deltas[tgt].get(
+                        res,
+                        0.0
+                    ) + rate
                 )
 
-            # 5. Apply changes atomically
             for node_id, changes in deltas.items():
 
                 for res, delta in changes.items():
@@ -170,7 +248,6 @@ class World:
 
         except Exception:
 
-            # 6. Rollback on failure
             SnapshotManager.rollback(
                 self,
                 snapshot

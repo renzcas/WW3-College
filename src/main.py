@@ -1,5 +1,5 @@
 # src/main.py
-from models.world import World
+from src.models.world_old import World
 
 def main():
     world = World()
