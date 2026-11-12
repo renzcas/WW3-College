@@ -11,6 +11,12 @@ class World:
         self.tick_count = 0
         self.nodes = {}
         self.flows = []
+        
+        # Pillar 3 & 4 Native Event & Tension Engine State
+        self.event_queue = []
+        self.event_history = []
+        self.global_tension = 0.0
+        self.world_stage = "PEACE"
 
     def add_node(self, node_id: str, state: dict):
 
@@ -38,12 +44,67 @@ class World:
             "rate": rate
         })
 
+    def queue_event(self, event):
+        """
+        Validate and queue an incoming event for simulation processing.
+        """
+        if not event.validate():
+            raise ValueError("Invalid event parameters or out-of-range metrics.")
+        self.event_queue.append(event)
+
+    def process_events(self):
+        """
+        Drain the event queue, push to history, and mutate global tension/stages.
+        """
+        while self.event_queue:
+            event = self.event_queue.pop(0)
+            self.event_history.append(event)
+            
+            # Accumulate tension based on normalized escalation score
+            self.global_tension += event.escalation_score()
+            self.global_tension = min(self.global_tension, 100.0)
+            
+            self.update_world_stage()
+
+    def update_world_stage(self):
+        """
+        Determine current geopolitical stage based on global tension thresholds.
+        """
+        t = self.global_tension
+        if t < 20:
+            self.world_stage = "PEACE"
+        elif t < 40:
+            self.world_stage = "COMPETITION"
+        elif t < 60:
+            self.world_stage = "CRISIS"
+        elif t < 80:
+            self.world_stage = "REGIONAL_WAR"
+        else:
+            self.world_stage = "GLOBAL_WAR_RISK"
+
+    def get_world_report(self) -> dict:
+        """
+        Generate a summary snapshot of the current simulation epoch.
+        """
+        recent_events = [e.title for e in self.event_history[-5:]]
+        return {
+            "tick": self.tick_count,
+            "world_stage": self.world_stage,
+            "global_tension": round(self.global_tension, 2),
+            "recent_events": recent_events,
+            "nodes_count": len(self.nodes)
+        }
+
     def get_state_snapshot(self):
 
         return copy.deepcopy({
             "tick_count": self.tick_count,
             "nodes": self.nodes,
-            "flows": self.flows
+            "flows": self.flows,
+            "event_queue": self.event_queue,
+            "event_history": self.event_history,
+            "global_tension": self.global_tension,
+            "world_stage": self.world_stage
         })
 
     def step(self):
@@ -54,14 +115,16 @@ class World:
         )
 
         try:
+            # 2. Process queued events before physics flows execute
+            self.process_events()
 
-            # 2. Delta buffer for atomic updates
+            # 3. Delta buffer for atomic updates
             deltas = {
                 node_id: {}
                 for node_id in self.nodes
             }
 
-            # 3. Collect flow rates &
+            # 4. Collect flow rates &
             #    enforce referential integrity
             for flow in self.flows:
 
@@ -88,7 +151,7 @@ class World:
                     deltas[tgt].get(res, 0.0) + rate
                 )
 
-            # 4. Apply changes atomically
+            # 5. Apply changes atomically
             for node_id, changes in deltas.items():
 
                 for res, delta in changes.items():
@@ -107,7 +170,7 @@ class World:
 
         except Exception:
 
-            # 5. Rollback on failure
+            # 6. Rollback on failure
             SnapshotManager.rollback(
                 self,
                 snapshot
