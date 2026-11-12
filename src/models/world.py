@@ -1,5 +1,3 @@
-# src/models/world.py
-
 import copy
 
 from models.snapshot import SnapshotManager
@@ -12,7 +10,6 @@ class World:
         self.nodes = {}
         self.flows = []
 
-        # Pillar 3 & 4
         self.event_queue = []
         self.event_history = []
 
@@ -69,9 +66,8 @@ class World:
 
             self.event_history.append(event)
 
-            # Slow-burn pressure model
             self.global_tension += (
-                event.escalation_score() / 10.0
+                event.escalation_score()
             )
 
             self.global_tension = min(
@@ -191,7 +187,6 @@ class World:
 
         try:
 
-            # Process events first
             self.process_events()
 
             deltas = {

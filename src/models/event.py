@@ -1,5 +1,3 @@
-# src/models/event.py
-
 """
 WW3-College Event Model
 
@@ -7,7 +5,7 @@ Core event object used throughout the simulation.
 """
 
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import List, Dict, Any
 import uuid
 
@@ -20,18 +18,18 @@ class Event:
 
     title: str
     description: str
-    category: str
+    category: str = "GENERAL"
 
     countries: List[str] = field(default_factory=list)
     factions: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
 
     severity: float = 0.0
-    confidence: float = 100.0          # Normalized 0-100 scale
-    source_reliability: float = 100.0  # Normalized 0-100 scale
+    confidence: float = 100.0
+    source_reliability: float = 100.0
 
     timestamp: str = field(
-        default_factory=lambda: datetime.utcnow().isoformat()
+        default_factory=lambda: datetime.now(UTC).isoformat()
     )
 
     event_id: str = field(
@@ -43,7 +41,8 @@ class Event:
     def escalation_score(self) -> float:
         """
         Calculate weighted escalation score normalized to 0-100 scale.
-        Formula: severity × (confidence / 100) × (reliability / 100)
+        Formula:
+        severity × (confidence / 100) × (reliability / 100)
         """
         return round(
             self.severity
@@ -54,8 +53,9 @@ class Event:
 
     def validate(self) -> bool:
         """
-        Validate required fields and 0-100 ranges.
+        Validate required fields and ranges.
         """
+
         if not self.title:
             return False
 
@@ -89,15 +89,24 @@ class Event:
         return cls(
             title=data.get("title", ""),
             description=data.get("description", ""),
-            category=data.get("category", ""),
+            category=data.get("category", "GENERAL"),
             countries=data.get("countries", []),
             factions=data.get("factions", []),
             tags=data.get("tags", []),
             severity=data.get("severity", 0.0),
             confidence=data.get("confidence", 100.0),
-            source_reliability=data.get("source_reliability", 100.0),
-            timestamp=data.get("timestamp", datetime.utcnow().isoformat()),
-            event_id=data.get("event_id", str(uuid.uuid4())),
+            source_reliability=data.get(
+                "source_reliability",
+                100.0
+            ),
+            timestamp=data.get(
+                "timestamp",
+                datetime.now(UTC).isoformat()
+            ),
+            event_id=data.get(
+                "event_id",
+                str(uuid.uuid4())
+            ),
             metadata=data.get("metadata", {})
         )
 
@@ -116,6 +125,7 @@ class Event:
 
 
 EVENT_CATEGORIES = [
+    "GENERAL",
     "MILITARY",
     "CYBER",
     "ECONOMIC",
@@ -127,5 +137,5 @@ EVENT_CATEGORIES = [
     "SPACE",
     "ENERGY",
     "BIOLOGICAL",
-    "CIVIL_UNREST"
+    "CIVIL_UNREST",
 ]
